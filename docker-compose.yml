@@ -1,0 +1,114 @@
+services:
+  django_wsgi:
+    container_name: django_wsgi
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - PROD=false
+    networks:
+      - app-network
+
+  celery:
+    build: .
+    depends_on:
+      - redis
+      - django_wsgi
+    command: bash -c "celery -A core worker -l INFO --concurrency=3"
+    volumes:
+      - .:/app
+    restart: always
+    networks:
+      - app-network
+
+  celery_beat:
+    build: .
+    command: bash -c "celery -A core beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler"
+    volumes:
+      - .:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: always
+    networks:
+      - app-network
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
+    command: redis-server --save 20 1 --loglevel warning
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  nginx:
+    image: nginx:mainline-alpine
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx:/etc/nginx/conf.d
+      - ./static:/app/static
+    depends_on:
+      - "django_wsgi"
+    networks:
+      - app-network
+
+  flower:
+    build: .
+    container_name: flower-2
+    command: celery --broker=redis://redis:6379/0 flower --persistent=True --db=/data/flower_db
+    ports:
+      - 5555:5555
+    volumes:
+      - flower_data:/data
+    networks:
+      - app-network
+    env_file:
+      - .env
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres-dbs
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: bank@2024
+      POSTGRES_DB: bank_admin_backend_db
+    ports:
+      - "5432:5432"
+    networks:
+      - app-network
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: bank-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@gmail.com  # Set admin email for pgAdmin login
+      PGADMIN_DEFAULT_PASSWORD: admin          # Set admin password for pgAdmin login
+    ports:
+      - "5050:80"  # Expose pgAdmin on port 5050
+    depends_on:
+      - postgres
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+    external: true
+
+volumes:
+  flower_data:
+  postgres_data:

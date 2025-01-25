@@ -3,10 +3,10 @@ import csv
 
 # Connect to your PostgreSQL database
 conn = psycopg2.connect(
-    dbname="bank_admin_backend_db",
+    dbname="postgres",
     user="postgres",
     password="bank@2024",
-    host="localhost",
+    host="postgres",
     port="5432"
 )
 cur = conn.cursor()

@@ -32,6 +32,9 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     # Add Celery-related app
     'django_celery_beat',  # Optional: If you're using periodic tasks
+    'rest_framework',
+    'model_train',
+    'test'
 ]
 
 MIDDLEWARE = [
